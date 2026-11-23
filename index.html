@@ -158,7 +158,7 @@
                         <i data-lucide="ticket" class="w-4 h-4"></i>
                         <span>사전예약 바로가기</span>
                     </button>
-                    <button onclick="selectEventById(1)" class="py-2.5 px-3 bg-white/20 hover:bg-white/30 text-white font-medium rounded-xl text-xs flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20 active:scale-95">
+                    <button id="heroDetailBtn" onclick="onHeroDetailClick()" class="py-2.5 px-3 bg-white/20 hover:bg-white/30 text-white font-medium rounded-xl text-xs flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20 active:scale-95">
                         <i data-lucide="info" class="w-4 h-4"></i>
                         <span>상세보기</span>
                     </button>
@@ -206,7 +206,7 @@
                 <!-- JavaScript dynamic insert -->
             </div>
 
-            <!-- 지도 뷰 container (숨김 기본값 또는 토글) -->
+            <!-- 지도 뷰 container -->
             <div id="mapViewContainer" class="hidden absolute inset-0 mx-4 rounded-2xl overflow-hidden border border-gray-200 shadow-md">
                 <div id="map" class="w-full h-full min-h-[380px] bg-gray-100 z-10"></div>
                 <!-- 지도 위 플로팅 현위치 이동 버튼 -->
@@ -238,7 +238,7 @@
             </button>
         </div>
 
-        <!-- 3단계 세부 탭 컨트롤 (행사정보 / 대중교통 / 주차 팁) -->
+        <!-- 3단계 세부 탭 컨트롤 -->
         <div class="flex border-b border-gray-200 bg-gray-50">
             <button onclick="switchTab('info')" id="tabBtn-info" class="detail-tab flex-1 py-3 text-xs font-bold text-wonju-green border-b-2 border-wonju-green text-center transition">
                 <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1"></i>행사 정보
@@ -251,9 +251,8 @@
             </button>
         </div>
 
-        <!-- 탭 패널 콘텐츠 영역 (스크롤 가능) -->
+        <!-- 탭 패널 콘텐츠 영역 -->
         <div class="flex-1 overflow-y-auto p-5 space-y-4 text-xs leading-relaxed text-gray-700">
-            
             <!-- Tab 1: 행사 정보 -->
             <div id="tabContent-info" class="tab-panel space-y-4">
                 <div class="relative w-full h-44 rounded-xl overflow-hidden bg-gray-100 shadow-inner">
@@ -283,7 +282,6 @@
                     </div>
                 </div>
 
-                <!-- 공공데이터포털 API 연동 출처 태그 -->
                 <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 text-[11px] text-gray-500 space-y-1">
                     <div class="font-bold text-gray-700 flex items-center gap-1">
                         <i data-lucide="database" class="w-3.5 h-3.5 text-blue-600"></i> 한국관광공사 TourAPI 4.0 연동
@@ -298,18 +296,14 @@
                     <h4 class="font-bold text-blue-900 mb-1 flex items-center gap-1.5 text-xs">
                         <i data-lucide="bus" class="w-4 h-4 text-blue-600"></i> 주요 경유 시내버스
                     </h4>
-                    <div id="modalBusNumbers" class="flex flex-wrap gap-1.5 mt-2">
-                        <!-- 버스 칩 연동 -->
-                    </div>
+                    <div id="modalBusNumbers" class="flex flex-wrap gap-1.5 mt-2"></div>
                 </div>
 
                 <div class="space-y-2">
                     <h4 class="font-bold text-gray-900 flex items-center gap-1.5 text-xs">
                         <i data-lucide="map-pin" class="w-4 h-4 text-wonju-green"></i> 하차 정류장 및 도보 동선
                     </h4>
-                    <div id="modalBusStops" class="space-y-2">
-                        <!-- 정류장 정보 -->
-                    </div>
+                    <div id="modalBusStops" class="space-y-2"></div>
                 </div>
 
                 <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
@@ -344,7 +338,6 @@
                     </button>
                 </div>
             </div>
-
         </div>
 
         <!-- 바텀 시트 푸터 버튼 -->
@@ -555,6 +548,7 @@
         let currentEvents = [...WONJU_EVENTS_DATA];
         let activeCategory = '전체';
         let currentSelectedEvent = null;
+        let heroEventItem = null;
         let map = null;
         let mapMarkers = [];
         let isMapView = false;
@@ -564,16 +558,21 @@
         // 2. 앱 초기화
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
-            // Lucide icons 변환
             lucide.createIcons();
 
-            // 리스트 Render
+            // 저장된 설정 로드
+            const savedKey = localStorage.getItem('WONJU_API_KEY');
+            const savedEndpoint = localStorage.getItem('WONJU_API_ENDPOINT');
+            if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+            if (savedEndpoint) document.getElementById('apiEndpointInput').value = savedEndpoint;
+
             renderEventsList(currentEvents);
 
-            // 메인 D-Day 타이머 시작 (가장 마감 임박한 ID: 1 댄싱카니발)
-            initHeroCountdown(WONJU_EVENTS_DATA[0]);
+            // 메인 Hero 타이머 설정 (첫 번째 이벤트 동적 설정)
+            if (WONJU_EVENTS_DATA.length > 0) {
+                initHeroCountdown(WONJU_EVENTS_DATA[0]);
+            }
 
-            // Leaflet 지도 초기화
             initLeafletMap();
         });
 
@@ -581,6 +580,7 @@
         // 3. 1단계: D-Day 카운트다운 로직
         // ==========================================
         function initHeroCountdown(eventItem) {
+            heroEventItem = eventItem;
             const daysEl = document.getElementById('timerDays');
             const hoursEl = document.getElementById('timerHours');
             const minsEl = document.getElementById('timerMins');
@@ -623,7 +623,15 @@
         }
 
         function onHeroReserveClick() {
-            window.open(WONJU_EVENTS_DATA[0].reserveUrl, '_blank');
+            if (heroEventItem && heroEventItem.reserveUrl) {
+                window.open(heroEventItem.reserveUrl, '_blank');
+            }
+        }
+
+        function onHeroDetailClick() {
+            if (heroEventItem) {
+                selectEventById(heroEventItem.id);
+            }
         }
 
         // ==========================================
@@ -709,14 +717,11 @@
         }
 
         // ==========================================
-        // 5. Leaflet 지도 연동 (OpenStreetMap)
+        // 5. Leaflet 지도 연동
         // ==========================================
         function initLeafletMap() {
-            // 원주시청 중심 좌표 default
             const wonjuCenter = [37.3422, 127.9201];
-            map = L.map('map', {
-                zoomControl: false
-            }).setView(wonjuCenter, 12);
+            map = L.map('map', { zoomControl: false }).setView(wonjuCenter, 12);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap'
@@ -728,16 +733,11 @@
         function updateMapMarkers(events) {
             if (!map) return;
             
-            // 기존 마커 제거
             mapMarkers.forEach(m => map.removeLayer(m));
             mapMarkers = [];
 
             events.forEach(evt => {
-                const customHtml = `
-                    <div class="custom-pin bg-wonju-green w-8 h-8 text-xs cursor-pointer">
-                        📍
-                    </div>
-                `;
+                const customHtml = `<div class="custom-pin bg-wonju-green w-8 h-8 text-xs cursor-pointer">📍</div>`;
                 const customIcon = L.divIcon({
                     html: customHtml,
                     className: '',
@@ -764,9 +764,7 @@
                 listEl.classList.add('hidden');
                 mapEl.classList.remove('hidden');
                 toggleText.innerText = '리스트 보기';
-                setTimeout(() => {
-                    map.invalidateSize();
-                }, 100);
+                setTimeout(() => { map.invalidateSize(); }, 100);
             } else {
                 listEl.classList.remove('hidden');
                 mapEl.classList.add('hidden');
@@ -787,7 +785,7 @@
         }
 
         // ==========================================
-        // 6. 3단계: 상세 페이지 바텀시트 & 탭 컨트롤
+        // 6. 3단계: 상세 바텀시트 & 클립보드 복사 개선
         // ==========================================
         function selectEventById(id) {
             const evt = WONJU_EVENTS_DATA.find(item => item.id === id);
@@ -795,7 +793,6 @@
 
             currentSelectedEvent = evt;
 
-            // 바텀시트 UI 렌더링
             document.getElementById('modalTitle').innerText = evt.title;
             document.getElementById('modalCategory').innerText = evt.category;
             document.getElementById('modalDate').innerHTML = `<i data-lucide="calendar" class="w-3 h-3 text-gray-400"></i> ${evt.startDate} ~ ${evt.endDate}`;
@@ -804,7 +801,7 @@
             document.getElementById('modalVenue').innerText = evt.venue;
             document.getElementById('modalDdayBadge').innerText = getDdayBadgeText(evt.reservationDeadline);
 
-            // 대중교통 탭
+            // 대중교통
             const busContainer = document.getElementById('modalBusNumbers');
             busContainer.innerHTML = evt.transport.busNumbers.map(b => 
                 `<span class="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-md font-bold text-xs">🚌 ${b}번</span>`
@@ -818,19 +815,15 @@
                 </div>`
             ).join('');
 
-            // 주차 팁 탭
+            // 주차 팁
             document.getElementById('modalPrimaryParking').innerText = evt.parking.primary;
             document.getElementById('modalParkingFee').innerText = `요금: ${evt.parking.fee}`;
             document.getElementById('modalAlternativeParking').innerText = evt.parking.alternative;
 
-            // 기본 탭으로 리셋
             switchTab('info');
-
-            // 바텀시트 오픈
             document.getElementById('detailBottomSheet').classList.remove('closed');
             lucide.createIcons();
 
-            // 지도가 켜져있다면 해당 지점으로 이동
             if (map && isMapView) {
                 map.setView([evt.lat, evt.lng], 14);
             }
@@ -841,13 +834,11 @@
         }
 
         function switchTab(tabName) {
-            // 버튼 스타일 제어
             document.querySelectorAll('.detail-tab').forEach(btn => {
                 btn.className = 'detail-tab flex-1 py-3 text-xs font-medium text-gray-500 border-b-2 border-transparent text-center hover:text-gray-700 transition';
             });
             document.getElementById(`tabBtn-${tabName}`).className = 'detail-tab flex-1 py-3 text-xs font-bold text-wonju-green border-b-2 border-wonju-green text-center transition';
 
-            // 콘텐츠 패널 제어
             document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.add('hidden'));
             document.getElementById(`tabContent-${tabName}`).classList.remove('hidden');
         }
@@ -858,23 +849,37 @@
             }
         }
 
+        // 클립보드 복사 API 비동기 및 보안 호환성 대응
         function copyParkingAddress() {
             if (!currentSelectedEvent || !currentSelectedEvent.parking.address) return;
             const address = currentSelectedEvent.parking.address;
 
-            // ExecCommand 기반 안전한 클립보드 복사
-            const tempInput = document.createElement("input");
-            tempInput.value = address;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand("copy");
-            document.body.removeChild(tempInput);
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(address).then(() => {
+                    showToast(`주차장 주소가 복사되었습니다:\n${address}`);
+                }).catch(() => fallbackCopy(address));
+            } else {
+                fallbackCopy(address);
+            }
+        }
 
-            showToast(`주차장 주소가 복사되었습니다:\n${address}`);
+        function fallbackCopy(text) {
+            const tempInput = document.createElement("input");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.focus();
+            tempInput.select();
+            try {
+                document.execCommand("copy");
+                showToast(`주차장 주소가 복사되었습니다:\n${text}`);
+            } catch (err) {
+                showToast("복사에 실패했습니다. 직접 복사해주세요.");
+            }
+            document.body.removeChild(tempInput);
         }
 
         // ==========================================
-        // 7. 공공데이터포털 TourAPI 4.0 동기화 인터페이스 (Vercel 연동)
+        // 7. TourAPI 동기화 인터페이스
         // ==========================================
         function openApiModal() {
             document.getElementById('apiConfigModal').classList.remove('hidden');
@@ -888,12 +893,8 @@
             const key = document.getElementById('apiKeyInput').value.trim();
             const endpoint = document.getElementById('apiEndpointInput').value.trim();
             
-            if (key) {
-                localStorage.setItem('WONJU_API_KEY', key);
-            }
-            if (endpoint) {
-                localStorage.setItem('WONJU_API_ENDPOINT', endpoint);
-            }
+            if (key) localStorage.setItem('WONJU_API_KEY', key);
+            if (endpoint) localStorage.setItem('WONJU_API_ENDPOINT', endpoint);
 
             document.getElementById('apiStatusBadge').innerHTML = `
                 <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> TourAPI 연동 완료
@@ -904,17 +905,11 @@
             showToast('공공데이터포털 API 설정이 저장되었습니다.');
         }
 
-        /**
-         * TourAPI 4.0 연동 표준 핸들러 예시 (Vercel Serverless `/api/tour` 연동용)
-         * - 행사정보조회 (searchFestival1)
-         * - 지역코드조회 (areaCode1 -> 강원 32, 원주 9)
-         */
         async function fetchTourApiEvents() {
             const endpoint = localStorage.getItem('WONJU_API_ENDPOINT') || '/api/tour';
             const apiKey = localStorage.getItem('WONJU_API_KEY') || '';
 
             try {
-                // Vercel Serverless Endpoint Call Sample
                 const url = `${endpoint}?serviceKey=${encodeURIComponent(apiKey)}&areaCode=32&sigunguCode=9&eventStartDate=20260101&MobileOS=ETC&MobileApp=MoaWonju&_type=json`;
                 const response = await fetch(url);
                 if (response.ok) {
@@ -922,11 +917,10 @@
                     console.log('TourAPI Sync Complete:', data);
                 }
             } catch (err) {
-                console.log('Online API sync fallback to local mock data logic active.');
+                console.log('Online API sync fallback to local mock data active.');
             }
         }
 
-        // 단순 알림 토스트 UI
         function showToast(message) {
             const toast = document.createElement('div');
             toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-gray-900/90 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl backdrop-blur-md text-center max-w-xs transition-opacity duration-300';
