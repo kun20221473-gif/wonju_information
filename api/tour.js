@@ -1,36 +1,33 @@
+// api/tour.js
 export default async function handler(req, res) {
-  // CORS 헤더 설정
+  // 브라우저 CORS 허용 헤더 설정
+  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
 
-  const { serviceKey, endpoint = 'searchFestival1', ...params } = req.query;
-  const API_KEY = process.env.TOUR_API_KEY || serviceKey;
-
-  if (!API_KEY) {
-    return res.status(400).json({ error: 'API 키가 설정되지 않았습니다.' });
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
   }
 
-  // 기본 파라미터 셋업 (sigunguCode 오타 수정)
-  const baseParams = {
-    numOfRows: '20',
-    pageNo: '1',
-    MobileOS: 'ETC',
-    MobileApp: 'MoaWonju',
-    _type: 'json',
-    areaCode: '32',   // 강원특별자치도
-    sigunguCode: '9', // 원주시
-    ...params
-  };
+  // 서버 환경변수(process.env.TOUR_API_KEY) 또는 쿼리 스트링 키 사용
+  const apiKey = process.env.TOUR_API_KEY || req.query.serviceKey;
+  const { eventStartDate } = req.query;
 
-  // URLSearchParams 이중 인코딩 문제 방지를 위해 Raw String 결합 처리
-  const extraQueryString = new URLSearchParams(baseParams).toString();
-  const targetUrl = `https://apis.data.go.kr/B551011/KorService1/${endpoint}?serviceKey=${API_KEY}&${extraQueryString}`;
+  if (!apiKey) {
+    return res.status(400).json({ error: 'ServiceKey가 설정되지 않았습니다.' });
+  }
+
+  const baseUrl = 'https://apis.data.go.kr/B551011/KorService1/searchFestival1';
+  // ServiceKey는 decodeURIComponent 처리 후 안전하게 붙여서 호출
+  const decodedKey = decodeURIComponent(apiKey);
+  const targetUrl = `${baseUrl}?serviceKey=${encodeURIComponent(decodedKey)}&numOfRows=50&pageNo=1&MobileOS=ETC&MobileApp=MoaWonju&_type=json&listYN=Y&arrange=A&areaCode=32&sigunguCode=9&eventStartDate=${eventStartDate || ''}`;
 
   try {
-    const response = await fetch(targetUrl);
-    const data = await response.json();
+    const apiRes = await fetch(targetUrl);
+    const data = await apiRes.json();
     return res.status(200).json(data);
-  } catch (error) {
-    return res.status(500).json({ error: 'API 호출 실패', details: error.message });
+  } catch (err) {
+    return res.status(500).json({ error: '공공데이터 API 호출 중 오류가 발생했습니다.' });
   }
 }
